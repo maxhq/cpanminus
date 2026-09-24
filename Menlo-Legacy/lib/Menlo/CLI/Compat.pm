@@ -2742,13 +2742,18 @@ sub init_tools {
     if ($tar && !$maybe_bad_tar->()) {
         chomp $tar_ver;
         $self->chat("You have $tar: $tar_ver\n");
+        # Suppress warnings about unknown archive infos on GNU tar >= 1.23
+        my @nowarn = (
+            ($tar_ver =~ /\bGNU\D+(\d+\.\d+)/) and
+            (version->declare($1) >= version->declare('1.23'))
+        ) ? ('--warning=no-unknown-keyword') : ();
         $self->{_backends}{untar} = sub {
             my($self, $tarfile) = @_;
 
             my $xf = ($self->{verbose} ? 'v' : '')."xf";
             my $ar = $tarfile =~ /bz2$/ ? 'j' : 'z';
 
-            my($root, @others) = `@{[ qs $tar ]} ${ar}tf @{[ qs $tarfile ]}`
+            my($root, @others) = `@{[ qs $tar ]} @nowarn -${ar}tf @{[ qs $tarfile ]}`
                 or return undef;
 
             FILE: {
@@ -2763,7 +2768,7 @@ sub init_tools {
                 }
             }
 
-            $self->run_command([ $tar, $ar.$xf, $tarfile ]);
+            $self->run_command([ $tar, @nowarn, "-$ar$xf", $tarfile ]);
             return $root if -d $root;
 
             $self->diag_fail("Bad archive: $tarfile");
